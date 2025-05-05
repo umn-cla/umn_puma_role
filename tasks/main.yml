@@ -1,2 +1,82 @@
----
-# tasks file for umn_sample_role
+- name: create puma group
+  group:
+    name: '{{ puma_group }}'
+    state: present
+- name: "Install Puma gem"
+  gem:
+    name: "puma"
+    state: present
+  become: true
+- name: Create puma runtime directories
+  file:
+    state: directory
+    path: '{{ item }}'
+    owner: '{{ puma_user }}'
+    group: '{{ puma_group }}'
+    mode: '0755'
+  loop:
+    - '{{ puma_pids_dir }}'
+    - '{{ puma_sockets_dir }}'
+    - '{{ puma_logs_dir }}'
+    - '{{ puma_configs_dir }}'
+  tags: puma
+- name: Install puma.rb config files
+  template:
+    src: templates/puma.j2
+    dest: '/etc/puma/puma.rb'
+    owner: '{{ puma_user }}'
+    group: '{{ puma_group }}'
+  register: puma_config
+  tags: puma
+- name: Ensure app Systemd service present
+  template:
+    src: templates/puma-service.j2
+    dest: "/etc/systemd/system/puma.service"
+- name: load new systemd service
+  systemd:
+    daemon_reload: yes
+- name: "Start and enable the puma service"
+  service:
+    name: "puma"
+    state: started
+    enabled: yes
+- name: "use acl to grant nginx access to all files in /var/www/, recursively"
+  acl:
+    path: "/var/www/"
+    entity: "{{ puma_user}}"
+    etype: "user"
+    permissions: "rx"
+    recursive: yes
+    state: "present"
+    default: yes
+- name: "Create a /var/www/{{appname_short}}/shared/log and set it to 777"
+  file:
+    path: "/var/www/{{appname_short}}/shared/"
+    state: directory
+    owner: "{{ deploy_user  }}"
+    group: "{{ deploy_user  }}"
+    mode: "0777"
+  become: yes
+- name: "Create a shared files dirs for rails application using a loop"
+  file:
+    path: "/var/www/{{appname_short}}/shared/{{ item }}"
+    state: directory
+    owner: "{{ deploy_user  }}"
+    group: "{{ deploy_user  }}"
+    mode: "0755"
+  become: yes
+  with_items:
+    - config
+    - public
+- name: "configure SElinux so that nginx can write to /var/www/html/<release>/log"
+  sefcontext:
+    target: "/var/www/{{appname_short}}/shared/log/(/.*)?"
+    setype: "httpd_sys_rw_content_t"
+    state: "present"
+  become: yes
+- name: "configure SElinux so that nginx can write to /var/www/html/<release>/log"
+  sefcontext:
+    target: "/var/www/{{appname_short}}/releases/[^/]*/log/(/.*)?"
+    setype: "httpd_sys_rw_content_t"
+    state: "present"
+  become: yes
