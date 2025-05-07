@@ -1,2 +1,24 @@
 ---
 # handlers file for umn_sample_role
+
+- name: restart puma
+  systemd:
+    name: puma
+    state: restarted
+  become: yes
+
+- name: reload systemd
+  systemd:
+    daemon_reload: yes
+  become: yes
+
+- name: restorecon
+  command: restorecon -R -v "{{ item }}"
+  loop:
+    - "/var/www/{{ appname_short }}/shared/log"
+    - "/var/www/{{ appname_short }}/releases"
+  become: yes
+
+- name: reload logrotate
+  command: logrotate -f /etc/logrotate.conf
+  become: yes

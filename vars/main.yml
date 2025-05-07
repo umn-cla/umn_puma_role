@@ -1,2 +1,13 @@
 ---
 # vars file for umn_sample_role
+
+ruby_install_from_source: true
+ruby_version: 3.4.3
+ruby_main_version: 3.4.0
+ruby_download_url: https://cache.ruby-lang.org/pub/ruby/3.4/ruby-3.4.3.tar.gz
+ruby_install_bundler: true
+ruby_build_packages:
+  - '@development tools'
+  - zlib-devel
+  - libffi-devel
+  - libyaml-devel

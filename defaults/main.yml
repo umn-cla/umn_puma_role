@@ -1,13 +1,14 @@
 ---
-# defaults file for umn_sample_role
 rails_env: test
 
 puma_app_name: "{{ appname_short }}"
 
-
+# User and group settings
 puma_user: puma
 puma_group: puma
+nginx_user: nginx
 
+# Directory paths
 puma_app_env: '{{ rails_env }}'
 puma_apps_dir: "/var/www/{{ appname_short}}"
 # puma_threads_min
@@ -17,13 +18,11 @@ puma_configs_dir: /etc/puma
 puma_logs_dir: /var/log/puma
 puma_pids_dir: /var/run/puma
 puma_sockets_dir: /var/run/puma
+puma_port: 3000
+# Ruby version (used for gems path)
+ruby_version: "3.4.0"
+
+# Application settings
+appname_short: "{{ appname_short | default('app') }}"
 
 
-ruby_install_from_source: true
-ruby_version: 3.3.0
-ruby_download_url: https://cache.ruby-lang.org/pub/ruby/3.3/ruby-3.3.0.tar.gz
-ruby_install_bundler: true
-ruby_build_packages:
-  - '@development tools'
-  - zlib-devel
-  - libffi-devel

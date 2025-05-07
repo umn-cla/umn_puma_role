@@ -1,82 +1,266 @@
-- name: create puma group
-  group:
-    name: '{{ puma_group }}'
-    state: present
-- name: "Install Puma gem"
-  gem:
-    name: "puma"
-    state: present
-  become: true
-- name: Create puma runtime directories
-  file:
-    state: directory
-    path: '{{ item }}'
-    owner: '{{ puma_user }}'
-    group: '{{ puma_group }}'
-    mode: '0755'
-  loop:
-    - '{{ puma_pids_dir }}'
-    - '{{ puma_sockets_dir }}'
-    - '{{ puma_logs_dir }}'
-    - '{{ puma_configs_dir }}'
-  tags: puma
-- name: Install puma.rb config files
-  template:
-    src: templates/puma.j2
-    dest: '/etc/puma/puma.rb'
-    owner: '{{ puma_user }}'
-    group: '{{ puma_group }}'
-  register: puma_config
-  tags: puma
-- name: Ensure app Systemd service present
-  template:
-    src: templates/puma-service.j2
-    dest: "/etc/systemd/system/puma.service"
-- name: load new systemd service
+---
+# Directory and permission setup
+- name: Setup application directories and permissions
+  block:
+    - name: Create puma runtime directories
+      file:
+        state: directory
+        path: '{{ item }}'
+        owner: '{{ puma_user }}'
+        group: '{{ puma_group }}'
+        mode: '0755'
+      loop:
+        - '{{ puma_pids_dir }}'
+        - '{{ puma_sockets_dir }}'
+        - '{{ puma_logs_dir }}'
+        - '{{ puma_configs_dir }}'
+      become: true
+      tags: [puma, directories]
+
+    - name: Create application shared directories
+      file:
+        path: "/var/www/{{ appname_short }}/shared/{{ item }}"
+        state: directory
+        owner: "{{ puma_user }}"
+        group: "{{ puma_group }}"
+        mode: "0775"
+      loop:
+        - config
+        - log
+        - public
+        - tmp
+      become: true
+      tags: [puma, directories]
+
+    - name: Set shared directory permissions
+      file:
+        path: "/var/www/{{ appname_short }}/shared"
+        state: directory
+        owner: "{{ puma_user }}"
+        group: "{{ puma_group }}"
+        mode: "0775"
+      become: true
+      tags: [puma, directories]
+
+    - name: Ensure parent directories exist and have correct permissions
+      file:
+        path: "/var/www/{{ appname_short }}"
+        state: directory
+        owner: "{{ puma_user }}"
+        group: "{{ puma_group }}"
+        mode: "0775"
+      become: true
+      tags: [puma, directories]
+
+    - name: Ensure current directory exists and has correct permissions
+      file:
+        path: "/var/www/{{ appname_short }}/current"
+        state: directory
+        owner: "{{ puma_user }}"
+        group: "{{ puma_group }}"
+        mode: "0775"
+      become: true
+      tags: [puma, directories]
+  tags: [puma, directories]
+
+# ACL configuration
+- name: Configure ACLs
+  block:
+    - name: Configure ACLs for nginx access
+      acl:
+        path: "/var/www/{{ appname_short }}"
+        entity: "{{ nginx_user }}"
+        etype: "user"
+        permissions: "rx"
+        recursive: yes
+        state: "present"
+        default: yes
+        follow: yes
+      become: true
+      tags: [puma, acls]
+
+    - name: Configure ACLs for deploy user access
+      acl:
+        path: "/var/www/{{ appname_short }}"
+        entity: "{{ deploy_user }}"
+        etype: "user"
+        permissions: "rwx"
+        recursive: yes
+        state: "present"
+        default: yes
+        follow: yes
+      become: true
+      tags: [puma, acls]
+
+    - name: Configure ACLs for puma service user
+      acl:
+        path: "/var/www/{{ appname_short }}"
+        entity: "{{ puma_user }}"
+        etype: "user"
+        permissions: "rwx"
+        recursive: yes
+        state: "present"
+        default: yes
+        follow: yes
+      become: true
+      tags: [puma, acls]
+
+    - name: Set immediate ACLs for shared directory and subfolders
+      acl:
+        path: "/var/www/{{ appname_short }}/shared"
+        entity: "{{ deploy_user }}"
+        etype: "user"
+        permissions: "rwx"
+        recursive: yes
+        state: "present"
+        follow: yes
+      become: true
+      tags: [puma, acls]
+
+    - name: Set immediate ACLs for shared subdirectories
+      acl:
+        path: "/var/www/{{ appname_short }}/shared/{{ item }}"
+        entity: "{{ deploy_user }}"
+        etype: "user"
+        permissions: "rwx"
+        recursive: yes
+        state: "present"
+        follow: yes
+      loop:
+        - config
+        - log
+        - public
+        - tmp
+      become: true
+      tags: [puma, acls]
+  tags: [puma, acls]
+
+# SELinux configuration
+- name: Configure SELinux contexts
+  block:
+    - name: Set SELinux context for application directory
+      sefcontext:
+        target: "/var/www/{{ appname_short }}/current(/.*)?"
+        setype: bin_t
+        state: present
+      become: true
+      notify: restorecon
+      tags: [puma, selinux]
+
+    - name: Set SELinux context for shared directory
+      sefcontext:
+        target: "/var/www/{{ appname_short }}/shared(/.*)?"
+        setype: bin_t
+        state: present
+      become: true
+      notify: restorecon
+      tags: [puma, selinux]
+
+    - name: Set SELinux context for releases directory
+      sefcontext:
+        target: "/var/www/{{ appname_short }}/releases(/.*)?"
+        setype: bin_t
+        state: present
+      become: true
+      notify: restorecon
+      tags: [puma, selinux]
+  tags: [puma, selinux]
+
+# Dependencies installation
+- name: Install dependencies
+  block:
+    - name: Install required packages
+      package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - mysql-devel
+        - mysql
+      become: true
+      tags: [puma, packages]
+
+    - name: Install Node.js repository
+      shell: "curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -"
+      become: true
+      when: ansible_distribution_major_version == "9"
+      tags: [puma, packages]
+
+    - name: Install Bundler gem
+      gem:
+        name: bundler
+        state: present
+        user_install: no
+        executable: /usr/bin/gem
+      become: true
+      tags: [puma, packages]
+  tags: [puma, packages]
+
+# Puma installation and configuration
+- name: Install and configure Puma
+  block:
+    - name: Install Puma gem
+      gem:
+        name: puma
+        state: present
+        user_install: no
+        executable: /usr/bin/gem
+      become: true
+      tags: [puma, install]
+
+    - name: Install puma configuration
+      template:
+        src: puma.j2
+        dest: '{{ puma_configs_dir }}/puma.rb'
+        owner: '{{ puma_user }}'
+        group: '{{ puma_group }}'
+        mode: '0644'
+      become: true
+      notify: restart puma
+      tags: [puma, config]
+
+    - name: Install systemd service
+      template:
+        src: puma.service.j2
+        dest: "/etc/systemd/system/puma.service"
+        owner: root
+        group: root
+        mode: '0644'
+      become: true
+      notify: reload systemd
+      tags: [puma, service]
+
+    - name: Fix Ruby gems permissions
+      file:
+        path: "/usr/local/lib/ruby/gems/{{ ruby_main_version }}/"
+        mode: "0755"
+        recurse: yes
+        state: directory
+      become: true
+      when: ruby_version is defined
+      tags: [puma, permissions]
+  tags: [puma, install, config, service]
+
+# Log rotation setup
+- name: Configure log rotation
+  block:
+    - name: Install logrotate configuration
+      template:
+        src: puma.logrotate.j2
+        dest: "/etc/logrotate.d/puma-{{ puma_app_name }}"
+        owner: root
+        group: root
+        mode: '0644'
+      become: true
+      notify: reload logrotate
+      tags: [puma, logs]
+  tags: [puma, logs]
+
+# Enable and start service
+- name: Enable and start Puma service
   systemd:
-    daemon_reload: yes
-- name: "Start and enable the puma service"
-  service:
-    name: "puma"
+    name: puma
     state: started
-    enabled: yes
-- name: "use acl to grant nginx access to all files in /var/www/, recursively"
-  acl:
-    path: "/var/www/"
-    entity: "{{ puma_user}}"
-    etype: "user"
-    permissions: "rx"
-    recursive: yes
-    state: "present"
-    default: yes
-- name: "Create a /var/www/{{appname_short}}/shared/log and set it to 777"
-  file:
-    path: "/var/www/{{appname_short}}/shared/"
-    state: directory
-    owner: "{{ deploy_user  }}"
-    group: "{{ deploy_user  }}"
-    mode: "0777"
-  become: yes
-- name: "Create a shared files dirs for rails application using a loop"
-  file:
-    path: "/var/www/{{appname_short}}/shared/{{ item }}"
-    state: directory
-    owner: "{{ deploy_user  }}"
-    group: "{{ deploy_user  }}"
-    mode: "0755"
-  become: yes
-  with_items:
-    - config
-    - public
-- name: "configure SElinux so that nginx can write to /var/www/html/<release>/log"
-  sefcontext:
-    target: "/var/www/{{appname_short}}/shared/log/(/.*)?"
-    setype: "httpd_sys_rw_content_t"
-    state: "present"
-  become: yes
-- name: "configure SElinux so that nginx can write to /var/www/html/<release>/log"
-  sefcontext:
-    target: "/var/www/{{appname_short}}/releases/[^/]*/log/(/.*)?"
-    setype: "httpd_sys_rw_content_t"
-    state: "present"
-  become: yes
+    enabled: true
+    daemon_reload: true
+  become: true
+  tags: [puma, service]

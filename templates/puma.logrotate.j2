@@ -1,0 +1,14 @@
+{{ puma_logs_dir }}/puma_{{ puma_app_name }}.log
+{{ puma_logs_dir }}/puma_{{ puma_app_name }}_errors.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    create 0640 {{ puma_user }} {{ puma_group }}
+    sharedscripts
+    postrotate
+        systemctl reload puma
+    endscript
+} 
