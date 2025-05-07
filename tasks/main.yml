@@ -182,9 +182,11 @@
     - name: Install Node.js repository
       shell: "curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -"
       become: true
-      when: ansible_distribution_major_version == "9"
       tags: [puma, packages]
-
+    - name: "Install node 22"
+      yum:
+        name: "nodejs"
+        state: "present"
     - name: Install Bundler gem
       gem:
         name: bundler
