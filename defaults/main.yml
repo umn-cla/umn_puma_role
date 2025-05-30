@@ -1,5 +1,5 @@
 ---
-rails_env: test
+rails_env: production
 
 puma_app_name: "{{ appname_short }}"
 
@@ -16,8 +16,8 @@ puma_apps_dir: "/var/www/{{ appname_short}}"
 # rails_env: development
 puma_configs_dir: /etc/puma
 puma_logs_dir: /var/log/puma
-puma_pids_dir: /var/run/puma
-puma_sockets_dir: /var/run/puma
+puma_pids_dir: /var/www/{{ appname_short}}/puma
+puma_sockets_dir: /var/www/{{ appname_short}}/puma
 puma_port: 3000
 # Ruby version (used for gems path)
 ruby_version: "3.4.0"
