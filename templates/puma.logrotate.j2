@@ -6,9 +6,5 @@
     compress
     delaycompress
     notifempty
-    create 0640 {{ puma_user }} {{ puma_group }}
-    sharedscripts
-    postrotate
-        systemctl reload puma
-    endscript
+    copytruncate
 } 
