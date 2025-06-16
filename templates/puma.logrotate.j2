@@ -1,6 +1,6 @@
 {{ puma_logs_dir }}/puma_{{ puma_app_name }}.log
 {{ puma_logs_dir }}/puma_{{ puma_app_name }}_errors.log {
-    daily
+    weekly
     missingok
     rotate 14
     compress
