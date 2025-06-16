@@ -21,4 +21,5 @@
 
 - name: reload logrotate
   command: logrotate -f /etc/logrotate.conf
+  ignore_errors: true
   become: yes
