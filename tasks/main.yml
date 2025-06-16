@@ -255,6 +255,7 @@
       become: true
       notify: reload logrotate
       tags: [puma, logs]
+
     - name: Install logrotate configuration
       template:
         src: rails.logrotate.j2
@@ -264,6 +265,16 @@
         mode: '0644'
       become: true
       notify: reload logrotate
+      tags: [puma, logs]
+
+    - name: Ensure that the logs are owned by the puma user
+      file:
+        path: "/var/www/{{ appname_short }}/shared/log"
+        owner: "{{ puma_user }}"
+        group: "{{ puma_group }}"
+        recurse: yes
+        state: directory
+      become: true
       tags: [puma, logs]
   tags: [puma, logs]
 
