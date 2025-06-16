@@ -255,6 +255,16 @@
       become: true
       notify: reload logrotate
       tags: [puma, logs]
+    - name: Install logrotate configuration
+      template:
+        src: rails.logrotate.j2
+        dest: "/etc/logrotate.d/rails-{{ puma_app_name }}"
+        owner: root
+        group: root
+        mode: '0644'
+      become: true
+      notify: reload logrotate
+      tags: [puma, logs]
   tags: [puma, logs]
 
 # Enable and start service
