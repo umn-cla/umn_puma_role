@@ -269,7 +269,7 @@
     - name: Set SELinux context for log file
       sefcontext:
         target: "/var/www/{{ appname_short }}/shared/log(/.*)?"
-        setype: "var_log_t"
+        setype: "httpd_sys_rw_content_t"
 
     - name: Ensure that the logs are owned by the puma user
       file:
