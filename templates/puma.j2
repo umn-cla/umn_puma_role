@@ -38,6 +38,8 @@ on_worker_boot do
   # Execute on worker startup
 end
 
+worker_timeout 240
+
 preload_app!
 
 plugin :tmp_restart
